@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>チームロールサイコロ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes roll {
+      0%   { transform: rotate(0deg) scale(1); opacity:0.3; }
+      25%  { transform: rotate(-10deg) scale(1.1); opacity:0.7; }
+      50%  { transform: rotate(10deg) scale(1.15); opacity:1; }
+      75%  { transform: rotate(-5deg) scale(1.05); }
+      100% { transform: rotate(0deg) scale(1); opacity:1; }
+    }
+    .rolling { animation: roll 0.5s ease-out; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-4">
+  <div class="max-w-2xl mx-auto">
+    <h1 class="text-2xl font-bold text-orange-400 mb-1">チームロールサイコロ</h1>
+    <p class="text-gray-400 text-sm mb-6">メンバーにランダムで役割を割り当てます。ミーティングやワークショップで活躍。</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <!-- Member Panel -->
+      <div class="bg-gray-900 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-orange-300 mb-3">メンバー</h2>
+        <div class="flex gap-2 mb-3">
+          <input id="memberInput" type="text" placeholder="名前を入力"
+            class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+            aria-label="メンバー名" onkeydown="if(event.key==='Enter') addMember()">
+          <button onclick="addMember()"
+            class="bg-orange-700 hover:bg-orange-600 rounded px-3 py-2 text-sm font-semibold transition"
+            aria-label="メンバーを追加">＋</button>
+        </div>
+        <ul id="memberList" class="space-y-1 max-h-48 overflow-y-auto"></ul>
+      </div>
+
+      <!-- Roles Panel -->
+      <div class="bg-gray-900 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-blue-300 mb-3">役割リスト</h2>
+        <div class="flex gap-2 mb-3">
+          <input id="roleInput" type="text" placeholder="カスタム役割"
+            class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm"
+            aria-label="カスタム役割" onkeydown="if(event.key==='Enter') addRole()">
+          <button onclick="addRole()"
+            class="bg-blue-700 hover:bg-blue-600 rounded px-3 py-2 text-sm font-semibold transition"
+            aria-label="役割を追加">＋</button>
+        </div>
+        <ul id="roleList" class="space-y-1 max-h-48 overflow-y-auto"></ul>
+      </div>
+    </div>
+
+    <!-- Roll Button -->
+    <div class="text-center mb-6">
+      <button id="rollBtn" onclick="rollAll()"
+        class="bg-gradient-to-r from-orange-600 to-yellow-500 hover:from-orange-500 hover:to-yellow-400 text-white font-bold py-4 px-12 rounded-2xl text-xl transition shadow-lg shadow-orange-900/40"
+        aria-label="サイコロを振る">🎲 サイコロを振る！</button>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="bg-gray-900 rounded-xl p-5 min-h-20">
+      <h2 class="text-sm font-semibold text-gray-400 mb-3">割り当て結果</h2>
+      <div id="resultGrid" class="space-y-2"></div>
+      <div id="unassigned" class="mt-3 text-xs text-gray-500"></div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_ROLES = ['モデレータ','タイムキーパー','書記','ファシリテータ','レビュアー','プレゼンター','デビルズアドボケイト'];
+    let members = [], roles = [...DEFAULT_ROLES];
+
+    function loadState() {
+      members = JSON.parse(localStorage.getItem('trd_members') || '[]');
+      const saved = JSON.parse(localStorage.getItem('trd_roles') || 'null');
+      if (saved) roles = saved;
+      render();
+    }
+
+    function save() {
+      localStorage.setItem('trd_members', JSON.stringify(members));
+      localStorage.setItem('trd_roles', JSON.stringify(roles));
+    }
+
+    function addMember() {
+      const v = document.getElementById('memberInput').value.trim();
+      if (!v || members.includes(v)) return;
+      members.push(v);
+      document.getElementById('memberInput').value = '';
+      save(); render();
+    }
+
+    function removeMember(name) {
+      members = members.filter(m => m !== name);
+      save(); render();
+    }
+
+    function addRole() {
+      const v = document.getElementById('roleInput').value.trim();
+      if (!v || roles.includes(v)) return;
+      roles.push(v);
+      document.getElementById('roleInput').value = '';
+      save(); render();
+    }
+
+    function removeRole(role) {
+      roles = roles.filter(r => r !== role);
+      save(); render();
+    }
+
+    function render() {
+      const ml = document.getElementById('memberList');
+      ml.innerHTML = '';
+      if (members.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'text-xs text-gray-600 px-2';
+        li.textContent = 'メンバーを追加してください';
+        ml.appendChild(li);
+      } else {
+        members.forEach(m => {
+          const li = document.createElement('li');
+          li.className = 'flex justify-between items-center bg-gray-800 rounded px-2 py-1 text-sm';
+          const sp = document.createElement('span');
+          sp.textContent = '👤 ' + m;
+          const btn = document.createElement('button');
+          btn.className = 'text-gray-500 hover:text-red-400 text-xs';
+          btn.setAttribute('aria-label', m + 'を削除');
+          btn.textContent = '✕';
+          btn.addEventListener('click', () => removeMember(m));
+          li.append(sp, btn);
+          ml.appendChild(li);
+        });
+      }
+
+      const rl = document.getElementById('roleList');
+      rl.innerHTML = '';
+      roles.forEach(r => {
+        const li = document.createElement('li');
+        li.className = 'flex justify-between items-center bg-gray-800 rounded px-2 py-1 text-sm';
+        const sp = document.createElement('span');
+        sp.textContent = '🎭 ' + r;
+        const btn = document.createElement('button');
+        btn.className = 'text-gray-500 hover:text-red-400 text-xs';
+        btn.setAttribute('aria-label', r + 'を削除');
+        btn.textContent = '✕';
+        btn.addEventListener('click', () => removeRole(r));
+        li.append(sp, btn);
+        rl.appendChild(li);
+      });
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function rollAll() {
+      if (members.length === 0) {
+        alert('メンバーを追加してください。');
+        return;
+      }
+      const shuffledRoles = shuffle(roles);
+      const assignments = members.map((m, i) => ({
+        member: m,
+        role: shuffledRoles[i] || '役割なし'
+      }));
+      const usedRoles = assignments.map(a => a.role);
+      const leftoverRoles = roles.filter(r => !usedRoles.includes(r));
+
+      const grid = document.getElementById('resultGrid');
+      grid.innerHTML = '';
+      const colors = ['text-orange-300','text-yellow-300','text-green-300','text-blue-300','text-purple-300','text-pink-300','text-red-300'];
+      assignments.forEach(({ member, role }, i) => {
+        const el = document.createElement('div');
+        el.className = `flex justify-between items-center bg-gray-800 rounded-lg px-4 py-3 rolling`;
+        el.style.animationDelay = `${i * 60}ms`;
+        const ms = document.createElement('span');
+        ms.className = 'font-semibold';
+        ms.textContent = member;
+        const rs = document.createElement('span');
+        rs.className = colors[i % colors.length] + ' font-bold';
+        rs.textContent = '🎭 ' + role;
+        el.append(ms, rs);
+        grid.appendChild(el);
+      });
+
+      const und = document.getElementById('unassigned');
+      if (leftoverRoles.length > 0) {
+        und.textContent = `未割当の役割: ${leftoverRoles.join('・')}`;
+      } else {
+        und.textContent = '';
+      }
+    }
+
+    loadState();
+  </script>
+</body>
+</html>
